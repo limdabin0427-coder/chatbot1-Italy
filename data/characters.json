@@ -1,27 +1,23 @@
 {
   "Italy": {
     "name": "Luca",
+    "name_aliases": ["Luka", "looker", "look a"],
     "country": "Italy",
     "age": 10,
     "gender": "male",
     "emoji": "🇮🇹",
     "sheet_tab": "Italy",
-
-    "opening_line": "Hi! My name is Luca. Nice to meet you.",
-    "ending_message": "It was nice to meet you. See you next time! Bye.",
-
-    "finale_message": "Great job! Let's meet new friends!\n잘했어요! 다른 나라 친구도 만나보세요!",
-
+    "landing_title": "Welcome to my Country!",
+    "home_url": "",
+    "intro_message": "It's good to see you again.",
+    "intro_speech": "Hi! It's good to see you again.",
+    "preference_food": "ice cream",
+    "ending_message": "Perfect! I hope to see you again! Bye-bye!",
+    "finale_message": "내 나라에 놀러 와 줘서 고마워, 친구야!\nBye-bye, my friend!",
     "images": {
       "flag": "italy flag.gif",
-
-      "backgrounds": [
-        "italy background 1.gif",
-        "italy background 2.gif",
-        "italy background 3.gif",
-        "italy background 4.gif"
-      ],
-
+      "intro_backgrounds": ["italy background 1.gif", "italy background 2.gif"],
+      "backgrounds": ["image 1.png", "image 2.png", "image 3.png", "image 4.png"],
       "character": {
         "greeting": "greeting.gif",
         "speaking": "speaking.gif",
@@ -29,125 +25,11 @@
         "no": "no.gif"
       }
     },
-
     "tts": {
-      "gender": "male",
-      "child_mode": true,
-      "rate": 0.85,
-      "pitch": 1.35
-    }
-  },
-
-  "America": {
-    "name": "Emily",
-    "country": "America",
-    "age": 10,
-    "gender": "female",
-    "emoji": "🇺🇸",
-    "sheet_tab": "America",
-
-    "opening_line": "Hi! My name is Emily. Nice to meet you.",
-    "ending_message": "It was nice to meet you. See you next time! Bye.",
-
-    "finale_message": "Great job! Let's meet new friends!\n잘했어요! 다른 나라 친구도 만나보세요!",
-
-    "images": {
-      "flag": "america flag.gif",
-
-      "backgrounds": [
-        "america background 1.gif",
-        "america background 2.gif",
-        "america background 3.gif",
-        "america background 4.gif"
-      ],
-
-      "character": {
-        "greeting": "america greeting.gif",
-        "speaking": "america speaking.gif",
-        "yes": "america yes.gif",
-        "no": "america no.gif"
-      }
-    },
-
-    "tts": {
-      "gender": "female",
-      "child_mode": true,
-      "rate": 0.85,
-      "pitch": 1.35
-    }
-  },
-
-  "Mexico": {
-    "name": "Carlos",
-    "country": "Mexico",
-    "age": 10,
-    "gender": "male",
-    "emoji": "🇲🇽",
-    "sheet_tab": "Mexico",
-
-    "opening_line": "Hi! My name is Carlos. Nice to meet you.",
-    "ending_message": "It was nice to meet you. See you next time! Bye.",
-
-    "finale_message": "Great job! Let's meet new friends!\n잘했어요! 다른 나라 친구도 만나보세요!",
-
-    "images": {
-      "flag": "mexico flag.gif",
-
-      "backgrounds": [
-        "mexico background 1.gif",
-        "mexico background 2.gif",
-        "mexico background 3.gif",
-        "mexico background 4.gif"
-      ],
-
-      "character": {
-        "greeting": "mexico greeting.gif",
-        "speaking": "mexico speaking.gif",
-        "yes": "mexico yes.gif",
-        "no": "mexico no.gif"
-      }
-    },
-
-    "tts": {
-      "gender": "male",
-      "child_mode": true,
-      "rate": 0.85,
-      "pitch": 1.35
-    }
-  },
-
-  "Hawaii": {
-    "name": "Kai",
-    "country": "Hawaii",
-    "age": 10,
-    "gender": "male",
-    "emoji": "🌺",
-    "sheet_tab": "Hawaii",
-
-    "opening_line": "Hi! My name is Kai. Nice to meet you.",
-    "ending_message": "It was nice to meet you. See you next time! Bye.",
-
-    "finale_message": "Great job! Let's meet new friends!\n잘했어요! 다른 나라 친구도 만나보세요!",
-
-    "images": {
-      "flag": "hawaii flag.gif",
-
-      "backgrounds": [
-        "hawaii background 1.gif",
-        "hawaii background 2.gif",
-        "hawaii background 3.gif",
-        "hawaii background 4.gif"
-      ],
-
-      "character": {
-        "greeting": "hawaii greeting.gif",
-        "speaking": "hawaii speaking.gif",
-        "yes": "hawaii yes.gif",
-        "no": "hawaii no.gif"
-      }
-    },
-
-    "tts": {
+      "provider": "openai",
+      "model": "gpt-4o-mini-tts",
+      "voice": "cedar",
+      "instructions": "Speak as a cheerful and friendly young Italian boy. Use clear American English, a warm natural tone, and a gentle pace for Korean third-grade English learners. Do not add or change any words.",
       "gender": "male",
       "child_mode": true,
       "rate": 0.85,
