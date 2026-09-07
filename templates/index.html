@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Let's Meet New Friends!</title>
+    <title>Welcome to my Country!</title>
 
     <script>
     const CONFIG = {
@@ -15,16 +15,14 @@
             yes      : "yes.gif",
             no       : "no.gif",
         },
-        backgrounds: [
-            "italy background 1.gif",
-            "italy background 2.gif",
-            "italy background 3.gif",
-            "italy background 4.gif",
-        ],
+        introBackground: "italy background 1.gif",
+        introBackgrounds: ["italy background 1.gif", "italy background 2.gif"],
+        backgrounds: [],
         flagImg    : "italy flag.gif",
         tts: { gender: "male", childMode: true, rate: 0.85 },
-        openingLine: "Hi! My name is Luca. Nice to meet you.",
-        finaleMsg  : "Great job! Let's meet new friends!\n잘했어요! 다른 나라 친구도 만나보세요!",
+        landingTitle: "Welcome to my Country!",
+        finaleMsg  : "내 나라에 놀러 와 줘서 고마워, 친구야!\nBye-bye, my friend!",
+        homeUrl    : "",
     };
     </script>
 
@@ -53,15 +51,15 @@
         #bg {
             position: fixed; inset: 0;
             z-index: 0; pointer-events: none;
+            background:
+                linear-gradient(rgba(255,255,255,0.15), rgba(255,255,255,0.15)),
+                linear-gradient(160deg, #b8e4ff 0%, #fff4ca 55%, #b7e3c0 100%);
         }
         .bg-slide {
             position: absolute; inset: 0;
             background-size: cover; background-position: center;
             opacity: 0;
-            animation: bgFade 24s infinite ease-in-out;
-        }
-        @keyframes bgFade {
-            0%{opacity:0} 4%{opacity:1} 25%{opacity:1} 29%{opacity:0} 100%{opacity:0}
+            transition: opacity 1.5s ease-in-out;
         }
 
         /* ════════════════════════════════════
@@ -88,6 +86,12 @@
             border-radius: 4px;
             box-shadow: 0 3px 10px rgba(0,0,0,0.4);
             z-index: 20;
+        }
+        #home-btn {
+            position:fixed; top:14px; right:14px; z-index:10000;
+            width:48px; height:48px; border:none; border-radius:50%;
+            background:rgba(255,255,255,0.94); box-shadow:0 3px 12px rgba(0,0,0,0.25);
+            font-size:25px; cursor:pointer;
         }
 
         /* 말풍선 */
@@ -253,6 +257,10 @@
             cursor: pointer;
             box-shadow: 0 5px 18px rgba(255,65,108,0.48);
             transition: transform 0.15s, box-shadow 0.15s;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
             /* ✅ 처음부터 보이게, 단 비활성 상태 */
             display: block;
             opacity: 0.35;
@@ -276,15 +284,25 @@
         /* ── 피날레 ── */
         #finale { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.80); z-index:9998; justify-content:center; align-items:center; }
         #finale.show { display:flex; }
-        #finale-msg {
+        #finale-card {
             background: linear-gradient(135deg,#fff9e6,#fff);
             color:#2a2a2a; padding:28px 24px; border-radius:22px;
-            font-size:clamp(16px,4.5vw,20px); font-weight:800;
             text-align:center; line-height:1.75;
             box-shadow:0 12px 40px rgba(0,0,0,0.4);
             max-width:min(310px,90vw); border:3px solid #FFD700;
+        }
+        #finale-msg {
+            font-size:clamp(16px,4.5vw,20px); font-weight:800;
             white-space:pre-wrap;
         }
+        #retry-btn {
+            margin-top:18px; width:100%; padding:12px 16px;
+            border:none; border-radius:12px; cursor:pointer;
+            background:linear-gradient(135deg,#00b09b,#96c93d);
+            color:#fff; font-size:clamp(14px,3.8vw,17px); font-weight:800;
+            line-height:1.35;
+        }
+        #retry-btn:disabled { opacity:0.55; cursor:default; }
         .spark { position:fixed; border-radius:50%; pointer-events:none; z-index:9997; animation:sparkFly 1.3s ease-out forwards; }
         @keyframes sparkFly { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--tx),var(--ty)) scale(0.1);opacity:0} }
 
@@ -298,12 +316,12 @@
         .lt { font-size:clamp(19px,5vw,24px); font-weight:800; color:#1a1a2e; margin-bottom:6px; }
         .ls { font-size:clamp(13px,3.3vw,14px); font-weight:600; color:#555; margin-bottom:2px; }
         .lk { font-size:clamp(11px,2.8vw,13px); color:#999; margin-bottom:16px; }
-        #name-input {
+        .login-input {
             width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:9px;
             font-size:16px; text-align:center; margin-bottom:12px; outline:none;
             transition:border-color 0.2s;
         }
-        #name-input:focus { border-color:#00b09b; }
+        .login-input:focus { border-color:#00b09b; }
         #login-btn {
             width:100%; padding:12px; border:none; border-radius:9px;
             background:linear-gradient(135deg,#00b09b,#96c93d);
@@ -316,20 +334,27 @@
 <!-- 로그인 -->
 <div id="login">
     <div id="login-box">
-        <div class="lt">✈️ Let's meet new friends!</div>
+        <div class="lt" id="landing-title">🇰🇷 Welcome to my Country!</div>
         <div class="ls">Enter your number and name.</div>
         <div class="lk">번호와 이름을 입력하세요</div>
-        <input type="text" id="name-input" placeholder="예: 01 홍길동">
+        <input type="text" inputmode="numeric" class="login-input" id="number-input" placeholder="번호 (예: 01)">
+        <input type="text" class="login-input" id="name-input" placeholder="이름 (예: 홍길동)">
         <button id="login-btn">Let's Go! 🚀</button>
     </div>
 </div>
 
 <!-- 피날레 -->
-<div id="finale"><div id="finale-msg"></div></div>
+<div id="finale">
+    <div id="finale-card">
+        <div id="finale-msg"></div>
+        <button id="retry-btn">🔁 Ask Again<br>다시 질문하기</button>
+    </div>
+</div>
 
 <!-- 메인 -->
 <div id="app">
     <div id="bg"></div>
+    <button id="home-btn" title="홈으로 돌아가기" aria-label="홈으로 돌아가기">🏠</button>
 
     <!-- 상단 50% -->
     <div id="top">
@@ -365,12 +390,26 @@ const hint      = document.getElementById('hint');
 const mic       = document.getElementById('mic');
 let recognition = null;
 let isBotSpeaking = false;
+let isListening = false;
+let recognitionActive = false;
+let manualStopRequested = false;
+let recognitionCandidates = [];
+let isSubmittingSpeech = false;
+let recognitionStarting = false;
+let mediaRecorder = null;
+let mediaStream = null;
+let recordedChunks = [];
+let recordingTimer = null;
 const finale    = document.getElementById('finale');
+const retryBtn  = document.getElementById('retry-btn');
+const homeBtn   = document.getElementById('home-btn');
 const charImg   = document.getElementById('char-img');
 const flagEl    = document.getElementById('flag');
 
-let voices = [], studentInfo = '', stage = 'await_greeting';
+let voices = [], studentNumber = '', studentName = '', stage = 'WAIT_GREETING';
 let conversationHistory = [], popupTimer = null;
+let backgroundTimer = null, backgroundIndex = 0, usingConversationBackgrounds = false;
+const backgroundDuration = 8000;
 
 /* ── CONFIG 초기화: config.py의 CHATBOT_ID → /api/config → 화면 ── */
 let configReady = false;
@@ -378,19 +417,91 @@ let configReady = false;
 function applyConfig() {
     const bg = document.getElementById('bg');
     bg.innerHTML = '';
-    CONFIG.backgrounds.forEach((src, i) => {
+    const introSources = CONFIG.introBackgrounds?.length
+        ? CONFIG.introBackgrounds
+        : [CONFIG.introBackground || CONFIG.backgrounds[0]].filter(Boolean);
+    const introSource = introSources[0];
+    if (introSource) {
         const d = document.createElement('div');
         d.className = 'bg-slide';
-        d.style.backgroundImage = `url('${src}')`;
-        d.style.animationDelay  = `${i * 6}s`;
+        d.dataset.backgroundRole = 'intro';
+        d.style.backgroundImage = `url('${introSource}')`;
+        d.style.opacity = '1';
         bg.appendChild(d);
-    });
+    }
+    if (introSources.length > 1) {
+        let introIndex = 0;
+        const introSlide = bg.querySelector('[data-background-role="intro"]');
+        const rotateIntro = () => {
+            if (usingConversationBackgrounds || !introSlide?.isConnected) return;
+            backgroundTimer = setTimeout(() => {
+                introIndex = (introIndex + 1) % introSources.length;
+                introSlide.style.backgroundImage = `url('${introSources[introIndex]}')`;
+                rotateIntro();
+            }, backgroundDuration);
+        };
+        rotateIntro();
+    }
     flagEl.src = CONFIG.flagImg;
     flagEl.alt = `${CONFIG.country} flag`;
     charImg.src = CONFIG.gif.greeting;
     charImg.alt = CONFIG.characterName;
     document.getElementById('finale-msg').innerText = CONFIG.finaleMsg;
+    document.getElementById('landing-title').innerText = `🇰🇷 ${CONFIG.landingTitle}`;
     document.title = `${CONFIG.characterName} - ${CONFIG.country}`;
+}
+
+function startBackgroundRotation() {
+    clearTimeout(backgroundTimer);
+    const slides = Array.from(document.querySelectorAll('.conversation-bg'));
+    if (slides.length < 2) return;
+    backgroundIndex = 0;
+
+    const showNextBackground = () => {
+        backgroundTimer = setTimeout(() => {
+            slides[backgroundIndex].style.opacity = '0';
+            backgroundIndex = (backgroundIndex + 1) % slides.length;
+            slides[backgroundIndex].style.opacity = '1';
+            showNextBackground();
+        }, backgroundDuration);
+    };
+
+    showNextBackground();
+}
+
+async function startConversationBackgrounds() {
+    if (usingConversationBackgrounds) return;
+    clearTimeout(backgroundTimer);
+    const bg = document.getElementById('bg');
+    if (!CONFIG.backgrounds.length) return;
+
+    const available = (await Promise.all(CONFIG.backgrounds.map(src => new Promise(resolve => {
+        const image = new Image();
+        image.onload = () => resolve(src);
+        image.onerror = () => resolve(null);
+        image.src = src;
+    })))).filter(Boolean);
+    if (!available.length) return;
+    usingConversationBackgrounds = true;
+
+    const introSlide = bg.querySelector('[data-background-role="intro"]');
+    const slides = available.map((src) => {
+        const d = document.createElement('div');
+        d.className = 'bg-slide conversation-bg';
+        d.style.backgroundImage = `url('${src}')`;
+        d.style.opacity = '0';
+        bg.appendChild(d);
+        return d;
+    });
+
+    void bg.offsetWidth;
+    slides[0].style.opacity = '1';
+    if (introSlide) introSlide.style.opacity = '0';
+
+    setTimeout(() => {
+        if (introSlide) introSlide.remove();
+        startBackgroundRotation();
+    }, 1600);
 }
 
 async function loadChatbotConfig() {
@@ -406,11 +517,14 @@ async function loadChatbotConfig() {
         CONFIG.characterName = data.characterName;
         CONFIG.country = data.country;
         CONFIG.gif = data.gif;
+        CONFIG.introBackground = data.introBackground;
+        CONFIG.introBackgrounds = data.introBackgrounds || [];
         CONFIG.backgrounds = data.backgrounds;
         CONFIG.flagImg = data.flagImg;
         CONFIG.tts = data.tts;
-        CONFIG.openingLine = data.openingLine;
+        CONFIG.landingTitle = data.landingTitle;
         CONFIG.finaleMsg = data.finaleMsg;
+        CONFIG.homeUrl = data.homeUrl || "";
 
         applyConfig();
         configReady = true;
@@ -445,52 +559,126 @@ function pickVoice(gender) {
     return voices.find(v => v.lang.startsWith('en')) || null;
 }
 
-function speak(text, cb) {
+let activeAudio = null;
+const ttsAudioCache = new Map();
+const ttsPendingCache = new Map();
+const ttsClientId = sessionStorage.getItem('ttsClientId') ||
+    ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+sessionStorage.setItem('ttsClientId', ttsClientId);
+
+function requestOpenAITts(text, ttsToken) {
+    if (!ttsToken) return Promise.reject(new Error('No TTS token'));
+    if (ttsAudioCache.has(ttsToken)) return Promise.resolve(ttsAudioCache.get(ttsToken));
+    if (ttsPendingCache.has(ttsToken)) return ttsPendingCache.get(ttsToken);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6500);
+    const requestPromise = fetch('/api/tts', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text, token: ttsToken, client_id: ttsClientId}),
+        signal: controller.signal,
+    })
+        .then(response => {
+            if (!response.ok) throw new Error(`TTS HTTP ${response.status}`);
+            return response.blob();
+        })
+        .then(blob => {
+            ttsAudioCache.set(ttsToken, blob);
+            return blob;
+        })
+        .finally(() => {
+            clearTimeout(timeout);
+            ttsPendingCache.delete(ttsToken);
+        });
+
+    ttsPendingCache.set(ttsToken, requestPromise);
+    return requestPromise;
+}
+
+function speak(text, cb, displayText=null, ttsToken=null) {
     // 챗봇 음성이 학생 답변으로 다시 인식되지 않도록 발화 중 마이크를 잠근다.
     isBotSpeaking = true;
+    isListening = false;
+    recognitionActive = false;
+    manualStopRequested = false;
+    recognitionCandidates = [];
     mic.classList.remove('active', 'recording');
     if (recognition) {
         try { recognition.abort(); } catch(e) {}
     }
 
     window.speechSynthesis.cancel();
-    bubble.innerText = text;
+    if (activeAudio) {
+        activeAudio.pause();
+        activeAudio = null;
+    }
+    bubble.innerText = displayText || text;
     bubble.style.display = 'block';
     const clean = text.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu,'').replace(/\s{2,}/g,' ').trim();
-    const u = new SpeechSynthesisUtterance(clean);
-    u.lang  = 'en-US';
-    u.rate  = CONFIG.tts.childMode ? CONFIG.tts.rate * 0.95 : CONFIG.tts.rate;
-    u.pitch = CONFIG.tts.childMode ? 1.35 : 1.0;
-    const sv = pickVoice(CONFIG.tts.gender);
-    if (sv) u.voice = sv;
-
     let finished = false;
+    let fallbackStarted = false;
     const finishSpeaking = () => {
         if (finished) return;
         finished = true;
         // 스피커 잔향까지 마이크가 잡지 않도록 아주 짧게 기다린 뒤 다시 활성화한다.
         setTimeout(() => {
             isBotSpeaking = false;
-            if (stage !== 'end' && mic.style.display !== 'none') {
+            if (String(stage).toLowerCase() !== 'end' && mic.style.display !== 'none') {
                 mic.classList.add('active');
             }
             if (cb) cb();
-        }, 450);
+        }, 150);
     };
 
-    u.onend = finishSpeaking;
-    u.onerror = finishSpeaking;
-    window.speechSynthesis.speak(u);
+    const browserFallback = () => {
+        if (fallbackStarted || finished) return;
+        fallbackStarted = true;
+        const u = new SpeechSynthesisUtterance(clean);
+        u.lang  = 'en-US';
+        u.rate  = CONFIG.tts.childMode ? CONFIG.tts.rate * 0.95 : CONFIG.tts.rate;
+        u.pitch = CONFIG.tts.childMode ? 1.35 : 1.0;
+        const sv = pickVoice(CONFIG.tts.gender);
+        if (sv) u.voice = sv;
+        u.onend = finishSpeaking;
+        u.onerror = finishSpeaking;
+        window.speechSynthesis.speak(u);
+    };
+
+    const playAudioBlob = (blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const audio = new Audio(objectUrl);
+        activeAudio = audio;
+        const cleanup = () => {
+            if (activeAudio === audio) activeAudio = null;
+            URL.revokeObjectURL(objectUrl);
+        };
+        audio.onended = () => { cleanup(); finishSpeaking(); };
+        audio.onerror = () => { cleanup(); browserFallback(); };
+        audio.play().catch(() => { cleanup(); browserFallback(); });
+    };
+
+    if (CONFIG.tts.provider !== 'openai' || !ttsToken) {
+        browserFallback();
+        return;
+    }
+
+    if (ttsAudioCache.has(ttsToken)) {
+        playAudioBlob(ttsAudioCache.get(ttsToken));
+        return;
+    }
+
+    requestOpenAITts(text, ttsToken)
+        .then(playAudioBlob)
+        .catch(() => browserFallback())
+        ;
 }
 
 /* ── GIF 전환 ── */
-function setGif(text) {
-    const t = text.toLowerCase();
-    const yes = ['yes, i do','i like','i love','yes!','yes,', ' yes ','great','same','of course'];
-    const no  = ['no, i don',"don't","doesn't",'no!',' no ','not like','different'];
-    if (yes.some(w => t.includes(w)))     charImg.src = CONFIG.gif.yes;
-    else if (no.some(w => t.includes(w))) charImg.src = CONFIG.gif.no;
-    else                                   charImg.src = CONFIG.gif.speaking;
+function setGif(reaction) {
+    if (reaction === 'yes')      charImg.src = CONFIG.gif.yes;
+    else if (reaction === 'no')  charImg.src = CONFIG.gif.no;
+    else                         charImg.src = CONFIG.gif.speaking;
 }
 
 /* ── 로그인 ── */
@@ -499,30 +687,44 @@ document.getElementById('login-btn').onclick = () => {
         alert('챗봇 설정을 불러오는 중입니다. 잠시 후 다시 눌러주세요.');
         return;
     }
-    const val = document.getElementById('name-input').value.trim();
-    if (!val) { alert('번호와 이름을 입력해주세요!'); return; }
-    studentInfo = val;
+    const numberValue = document.getElementById('number-input').value.trim();
+    const nameValue = document.getElementById('name-input').value.trim();
+    if (!numberValue || !nameValue) { alert('번호와 이름을 모두 입력해주세요!'); return; }
+    studentNumber = numberValue;
+    studentName = nameValue;
     document.getElementById('login').style.display = 'none';
     setTimeout(startApp, 300);
 };
 
 /* ── 앱 시작 ── */
-function startApp() {
-    // 마이크 활성화
-    mic.classList.add('active');
+async function startApp() {
+    mic.classList.remove('active');
     window.speechSynthesis.cancel();
-    stage = 'await_greeting';
+    stage = 'WAIT_GREETING';
     charImg.src = CONFIG.gif.greeting;
-
-    setTimeout(() => {
-        const line = CONFIG.openingLine;
-        addMsg('luca', line);
-        conversationHistory.push({ role: 'assistant', content: line });
-        speak(line, () => {
-            hint.innerText = '🎙️ 버튼을 누르고 대답해보세요!';
-            setTimeout(() => showPopup(`${CONFIG.characterName}에게 영어로 인사를 해보세요!`), 200);
+    try {
+        const res = await fetch('/api/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                student_number: studentNumber,
+                student_name: studentName,
+            }),
         });
-    }, 400);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.stage) stage = data.stage;
+        addMsg('luca', data.reply);
+        conversationHistory.push({ role: 'assistant', content: data.reply });
+        speak(data.speech_reply || data.reply, () => {
+            hint.innerText = '🎙️ 버튼을 누르고 대답해보세요!';
+            data.popup ? setTimeout(() => showPopup(data.popup), 200) : hidePopup();
+        }, data.reply, data.tts_token);
+    } catch (error) {
+        console.error('대화 시작 실패:', error);
+        addMsg('luca', 'Sorry. Please try again.');
+        speak('Sorry. Please try again.');
+    }
 }
 
 /* ── 팝업 ── */
@@ -536,9 +738,7 @@ function scheduleHide(d=500) { clearTimeout(popupTimer); popupTimer = setTimeout
 
 /* ── 메시지 추가 ── */
 function addMsg(sender, text) {
-    const t = (sender === 'user' && text.length > 0)
-        ? text.charAt(0).toUpperCase() + text.slice(1)
-        : text.trim();
+    const t = text.trim();
 
     const row = document.createElement('div');
     row.classList.add('row', sender === 'luca' ? 'luca-row' : 'user-row');
@@ -579,32 +779,92 @@ function showFinale() {
     setTimeout(()=>finale.classList.add('show'),600);
 }
 
+homeBtn.onclick = () => {
+    if (CONFIG.homeUrl) {
+        window.location.href = CONFIG.homeUrl;
+    } else {
+        alert('홈 화면을 준비하고 있어요.');
+    }
+};
+
+retryBtn.onclick = async () => {
+    retryBtn.disabled = true;
+    try {
+        const res = await fetch('/api/retry-question', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({}),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        finale.classList.remove('show');
+        stage = data.stage;
+        mic.style.display = 'block';
+        setGif(data.reaction || 'speaking');
+        addMsg('luca', data.reply);
+        conversationHistory.push({role:'assistant', content:data.reply});
+        speak(data.reply, () => {
+            hint.innerText = '🎙️ 버튼을 누르고 대답해보세요!';
+            data.popup ? showPopup(data.popup) : hidePopup();
+        }, null, data.tts_token);
+    } catch (error) {
+        alert('다시 질문하기를 시작하지 못했어요. 다시 눌러주세요.');
+    } finally {
+        retryBtn.disabled = false;
+    }
+};
+
 /* ── API 호출 ── */
-async function talk(input) {
+async function talk(input, alternatives=[]) {
     scheduleHide(400);
     try {
         const res  = await fetch('/api/chat', {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ student:studentInfo, message:input, history:conversationHistory, stage })
+            body: JSON.stringify({
+                message: input,
+                alternatives,
+                history: conversationHistory,
+                stage,
+            })
         });
         const data = await res.json();
         const shownInput = data.recognized_text || input;
         addMsg('user', shownInput);
         conversationHistory.push({ role:'user', content:shownInput });
-        conversationHistory.push({ role:'assistant', content:data.reply });
+        const fullAssistantReply = [data.reply, data.followup_reply]
+            .filter(Boolean)
+            .join(' ');
+        conversationHistory.push({ role:'assistant', content:fullAssistantReply });
         if (data.stage) stage = data.stage;
-        setGif(data.reply);
+        if (stage === 'STUDENT_QUESTION_1') startConversationBackgrounds();
+        setGif(data.reaction);
         addMsg('luca', data.reply);
         const pp = data.popup || null;
-        if (data.fireworks) {
-            hidePopup();
-            speak(data.reply, () => { hint.innerText='수고했어요! 🎉'; mic.style.display='none'; showFinale(); });
-        } else {
-            speak(data.reply, () => {
+        // 첫 말풍선을 재생하는 동안 다음 말풍선의 음성을 미리 준비한다.
+        if (data.followup_reply && data.followup_tts_token) {
+            requestOpenAITts(data.followup_reply, data.followup_tts_token).catch(() => {});
+        }
+        const finishTurn = () => {
+            if (data.fireworks) {
+                hidePopup();
+                hint.innerText = '수고했어요! 🎉';
+                mic.style.display = 'none';
+                showFinale();
+            } else {
                 hint.innerText = '🎙️ 버튼을 누르고 대답해보세요!';
                 pp ? setTimeout(()=>showPopup(pp),200) : hidePopup();
-            });
-        }
+            }
+        };
+
+        speak(data.speech_reply || data.reply, () => {
+            if (data.followup_reply) {
+                setGif('speaking');
+                addMsg('luca', data.followup_reply);
+                speak(data.followup_reply, finishTurn, null, data.followup_tts_token);
+            } else {
+                finishTurn();
+            }
+        }, null, data.tts_token);
     } catch(e) {
         addMsg('luca',"Sorry, I missed that. Can you say it again?");
         speak("Sorry, I missed that.");
@@ -613,23 +873,231 @@ async function talk(input) {
 
 /* ── STT ── */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SR) {
-    recognition = new SR();
-    recognition.lang = 'en-US'; recognition.interimResults = false; recognition.maxAlternatives = 1;
-    mic.onclick = () => {
+const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
+    const resetRecognition = (message='🎙️ 버튼을 한 번 누르고 말해 보세요!') => {
+        isListening = false;
+        recognitionActive = false;
+        recognitionStarting = false;
+        manualStopRequested = false;
+        recognitionCandidates = [];
+        isSubmittingSpeech = false;
+        mic.classList.remove('recording');
+        hint.innerText = message;
+    };
+
+    const submitRecognition = () => {
+        if (!isListening || isSubmittingSpeech) return;
+        isSubmittingSpeech = true;
+        const candidates = [...new Set(
+            recognitionCandidates.map(text => text.trim()).filter(Boolean)
+        )];
+        if (candidates.length === 0) {
+            resetRecognition('잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!');
+            return;
+        }
+
+        isListening = false;
+        recognitionActive = false;
+        manualStopRequested = false;
+        mic.classList.remove('recording', 'active');
+        hint.innerText = '대답을 확인하고 있어요...';
+        talk(candidates[0], candidates.slice(1)).finally(() => {
+            isSubmittingSpeech = false;
+        });
+    };
+
+    const createRecognition = () => {
+        // Safari에서는 종료된 SpeechRecognition 객체를 재사용하면 두 번째 발화부터
+        // 빈 결과가 오는 경우가 있어 매 발화마다 새 객체를 만든다.
+        const current = new SR();
+        current.lang = 'en-US';
+        current.interimResults = false;
+        current.continuous = false;
+        current.maxAlternatives = 5;
+
+        current.onstart = () => {
+            if (recognition !== current) return;
+            recognitionStarting = false;
+            recognitionActive = true;
+            if (manualStopRequested) {
+                try { current.stop(); } catch(e) { submitRecognition(); }
+            }
+        };
+
+        current.onresult = e => {
+            if (recognition !== current) return;
+            for (let resultIndex = e.resultIndex; resultIndex < e.results.length; resultIndex++) {
+                const result = e.results[resultIndex];
+                for (let alternativeIndex = 0; alternativeIndex < result.length; alternativeIndex++) {
+                    const transcript = result[alternativeIndex].transcript;
+                    if (transcript) recognitionCandidates.push(transcript);
+                }
+            }
+        };
+
+        current.onend = () => {
+            if (recognition !== current) return;
+            recognition = null;
+            recognitionActive = false;
+            recognitionStarting = false;
+            if (!isListening) return;
+            if (manualStopRequested) {
+                submitRecognition();
+            } else {
+                hint.innerText = '말을 마쳤으면 버튼을 다시 눌러주세요!';
+            }
+        };
+
+        current.onerror = e => {
+            if (recognition !== current) return;
+            recognition = null;
+            recognitionActive = false;
+            recognitionStarting = false;
+            if (e.error === 'aborted' && isBotSpeaking) return;
+            resetRecognition('잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!');
+        };
+
+        return current;
+    };
+
+    const closeMediaStream = () => {
+        clearTimeout(recordingTimer);
+        recordingTimer = null;
+        if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+        mediaRecorder = null;
+    };
+
+    const submitAppleRecording = async blob => {
+        if (!blob || blob.size < 100) {
+            resetRecognition('잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!');
+            return;
+        }
+        isListening = false;
+        isSubmittingSpeech = true;
+        mic.classList.remove('recording', 'active');
+        hint.innerText = '대답을 확인하고 있어요...';
+        try {
+            const type = blob.type || 'audio/mp4';
+            const extension = type.includes('webm') ? 'webm' : 'm4a';
+            const form = new FormData();
+            form.append('audio', blob, `speech.${extension}`);
+            form.append('client_id', ttsClientId);
+            const response = await fetch('/api/transcribe', {method:'POST', body:form});
+            if (!response.ok) throw new Error(`STT HTTP ${response.status}`);
+            const data = await response.json();
+            if (!data.text) throw new Error('Empty transcript');
+            await talk(data.text, []);
+        } catch (error) {
+            console.error('Apple 음성 변환 실패:', error);
+            resetRecognition('잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!');
+        } finally {
+            isSubmittingSpeech = false;
+        }
+    };
+
+    const stopAppleRecording = () => {
+        clearTimeout(recordingTimer);
+        recordingTimer = null;
+        if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+        hint.innerText = '대답을 확인하고 있어요...';
+        try { mediaRecorder.stop(); } catch(e) { closeMediaStream(); resetRecognition(); }
+    };
+
+    const startAppleRecording = async () => {
+        if (recognitionStarting || isSubmittingSpeech) return;
+        recognitionStarting = true;
+        recordedChunks = [];
+        try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {echoCancellation:true, noiseSuppression:true, autoGainControl:true}
+            });
+            const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+            const mimeType = candidates.find(type => MediaRecorder.isTypeSupported(type));
+            mediaRecorder = mimeType
+                ? new MediaRecorder(mediaStream, {mimeType})
+                : new MediaRecorder(mediaStream);
+            const currentRecorder = mediaRecorder;
+            currentRecorder.ondataavailable = event => {
+                if (event.data && event.data.size) recordedChunks.push(event.data);
+            };
+            currentRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, {type:currentRecorder.mimeType || 'audio/mp4'});
+                closeMediaStream();
+                submitAppleRecording(blob);
+            };
+            currentRecorder.onerror = () => {
+                closeMediaStream();
+                resetRecognition('마이크를 다시 눌러 말해 보세요!');
+            };
+            currentRecorder.start();
+            recognitionStarting = false;
+            isListening = true;
+            mic.classList.add('recording');
+            hint.innerText = '말한 뒤 버튼을 다시 눌러주세요! 👂';
+            recordingTimer = setTimeout(stopAppleRecording, 12000);
+        } catch (error) {
+            console.error('Apple 마이크 시작 실패:', error);
+            closeMediaStream();
+            resetRecognition('Safari의 마이크 사용을 허용해 주세요!');
+        }
+    };
+
+    const handleMicPress = event => {
+        if (event) event.preventDefault();
         // 챗봇이 말하는 동안에는 마이크가 절대 시작되지 않는다.
         if (isBotSpeaking || window.speechSynthesis.speaking) return;
         if (!mic.classList.contains('active')) return;
-        try { recognition.start(); } catch(e) { return; }
+        if (isSubmittingSpeech) return;
+
+        if (isAppleMobile) {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                stopAppleRecording();
+            } else {
+                startAppleRecording();
+            }
+            return;
+        }
+
+        if (isListening) {
+            manualStopRequested = true;
+            hint.innerText = '대답을 확인하고 있어요...';
+            if (recognitionActive) {
+                try { recognition.stop(); } catch(e) { submitRecognition(); }
+            } else if (recognitionStarting) {
+                // 태블릿에서 음성인식 준비가 늦을 때 두 번째 터치를 기억한다.
+                hint.innerText = '마이크를 준비하고 있어요...';
+            } else {
+                submitRecognition();
+            }
+            return;
+        }
+
+        recognitionCandidates = [];
+        manualStopRequested = false;
+        isListening = true;
+        recognitionStarting = true;
+        try {
+            recognition = createRecognition();
+            recognition.start();
+        } catch(e) {
+            recognition = null;
+            resetRecognition();
+            return;
+        }
         mic.classList.add('recording');
-        hint.innerText = 'Listening... 👂 (듣고 있어요)';
+        hint.innerText = '말한 뒤 버튼을 다시 눌러주세요! 👂';
     };
-    recognition.onresult = e => {
-        const t = e.results[0][0].transcript;
-        talk(t);
-    };
-    recognition.onend   = () => mic.classList.remove('recording');
-    recognition.onerror = () => mic.classList.remove('recording');
+
+    if (window.PointerEvent) {
+        mic.addEventListener('pointerup', handleMicPress);
+    } else {
+        mic.addEventListener('click', handleMicPress);
+    }
+
 } else {
     alert('크롬 브라우저를 사용해주세요!');
 }
