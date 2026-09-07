@@ -78,3 +78,21 @@ def find_food(text):
                 }
 
     return None
+
+
+def is_like_question(text):
+    """관사·단복수는 지적하지 않고 Do you like + 음식 문형만 확인합니다."""
+    cleaned = clean_text(text)
+    return bool(re.match(r"^do\s+you\s+like\s+.+$", cleaned))
+
+
+def extract_like_object(text):
+    cleaned = clean_text(text)
+    match = re.match(r"^do\s+you\s+like\s+(.+)$", cleaned)
+    return match.group(1).strip() if match else ""
+
+
+def normalize_like_question(text):
+    food = find_food(text)
+    name = food["display_name"] if food else extract_like_object(text)
+    return f"Do you like {name}?" if name else str(text or "").strip()
