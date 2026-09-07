@@ -12,7 +12,7 @@ def get_food_answer(country, question_number):
     return pattern[-1] if pattern else "yes"
 
 
-def make_food_response(answer, food_name, ask_back=True):
+def make_food_response(answer, food_name, ask_back=False):
     if answer == "yes":
         reply = f"Yes, I do. I like {food_name}."
     else:
