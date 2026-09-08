@@ -54,7 +54,7 @@ openai_key = os.environ.get(OPENAI_API_KEY_ENV)
 openai_client = OpenAI(api_key=openai_key) if openai_key else None
 
 tts_key = os.environ.get("OPENAI_TTS_API_KEY")
-tts_client = OpenAI(api_key=tts_key, timeout=5.0, max_retries=0) if tts_key else None
+tts_client = OpenAI(api_key=tts_key, timeout=12.0, max_retries=0) if tts_key else None
 TTS_MAX_CHARS = 500
 TTS_RATE_LIMIT = 30
 TTS_RATE_WINDOW_SECONDS = 60
@@ -377,6 +377,10 @@ def chatbot_config():
         },
         "finaleMsg": CHARACTER.get("finale_message", "Come visit Italy next time!"),
         "homeUrl": CHARACTER.get("home_url", ""),
+        # 로그인 화면이 보이는 동안 첫 인사 음성을 미리 준비할 수 있도록
+        # 고정된 첫 문장과 해당 문장 전용 서명을 함께 보낸다.
+        "introTtsText": CHARACTER["intro_speech"],
+        "introTtsToken": make_tts_token(CHARACTER["intro_speech"]),
     })
 
 
