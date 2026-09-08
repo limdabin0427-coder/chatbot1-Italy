@@ -23,6 +23,8 @@
         landingTitle: "Welcome to my Country!",
         finaleMsg  : "내 나라에 놀러 와 줘서 고마워, 친구야!\nBye-bye, my friend!",
         homeUrl    : "",
+        introTtsText: "",
+        introTtsToken: "",
     };
     </script>
 
@@ -525,8 +527,12 @@ async function loadChatbotConfig() {
         CONFIG.landingTitle = data.landingTitle;
         CONFIG.finaleMsg = data.finaleMsg;
         CONFIG.homeUrl = data.homeUrl || "";
+        CONFIG.introTtsText = data.introTtsText || "";
+        CONFIG.introTtsToken = data.introTtsToken || "";
 
         applyConfig();
+        // 학생이 번호와 이름을 입력하는 동안 첫 OpenAI 음성을 미리 내려받는다.
+        prepareIntroTts();
         configReady = true;
         hint.innerText = '번호와 이름을 입력해주세요.';
     } catch (error) {
@@ -566,13 +572,31 @@ const ttsClientId = sessionStorage.getItem('ttsClientId') ||
     ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 sessionStorage.setItem('ttsClientId', ttsClientId);
 
+let introTtsReadyPromise = null;
+
+function prepareIntroTts() {
+    if (CONFIG.tts.provider !== 'openai' || !CONFIG.introTtsText || !CONFIG.introTtsToken) {
+        return null;
+    }
+    if (!introTtsReadyPromise) {
+        introTtsReadyPromise = requestOpenAITts(CONFIG.introTtsText, CONFIG.introTtsToken)
+            .catch(error => {
+                // 실패한 요청을 고정하지 않아 시작 시 한 번 더 시도할 수 있게 한다.
+                introTtsReadyPromise = null;
+                console.warn('첫 인사 TTS 사전 준비 실패:', error);
+                return null;
+            });
+    }
+    return introTtsReadyPromise;
+}
+
 function requestOpenAITts(text, ttsToken) {
     if (!ttsToken) return Promise.reject(new Error('No TTS token'));
     if (ttsAudioCache.has(ttsToken)) return Promise.resolve(ttsAudioCache.get(ttsToken));
     if (ttsPendingCache.has(ttsToken)) return ttsPendingCache.get(ttsToken);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6500);
+    const timeout = setTimeout(() => controller.abort(), 15000);
     const requestPromise = fetch('/api/tts', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -702,6 +726,7 @@ async function startApp() {
     window.speechSynthesis.cancel();
     stage = 'WAIT_GREETING';
     charImg.src = CONFIG.gif.greeting;
+    hint.innerText = 'Luca가 잠시 준비하고 있어요…';
     try {
         const res = await fetch('/api/start', {
             method: 'POST',
