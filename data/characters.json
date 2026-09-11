@@ -12,6 +12,10 @@
     "intro_message": "It's good to see you again.",
     "intro_speech": "Hi! It's good to see you again.",
     "preference_food": "ice cream",
+    "retry_examples": {
+      "STUDENT_QUESTION_1": "Do you like pizza?",
+      "STUDENT_QUESTION_2": "Do you like ice cream?"
+    },
     "ending_message": "Perfect! I hope to see you again! Bye-bye!",
     "finale_message": "내 나라에 놀러 와 줘서 고마워, 친구야!\nBye-bye, my friend!",
     "images": {
