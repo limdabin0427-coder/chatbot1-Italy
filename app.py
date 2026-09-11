@@ -812,7 +812,7 @@ def chat():
         ),
         Stage.STUDENT_QUESTION_2.value: (
             Stage.STUDENT_PREFERENCE.value,
-            "내가 좋아하는 음식인지, 아닌지 알맞게 대답해 보세요.",
+            "Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.",
             f"How about you? Do you like {CHARACTER.get('preference_food', 'ice cream')}?",
             1,
         ),
