@@ -402,6 +402,10 @@ let mediaRecorder = null;
 let mediaStream = null;
 let recordedChunks = [];
 let recordingTimer = null;
+// 일부 모바일 브라우저가 오디오 종료 이벤트를 누락해도 다음 차례가 잠기지 않도록
+// 현재 발화와 복구 타이머를 한 쌍으로 관리한다.
+let speechRunId = 0;
+let speechSafetyTimer = null;
 const finale    = document.getElementById('finale');
 const retryBtn  = document.getElementById('retry-btn');
 const homeBtn   = document.getElementById('home-btn');
@@ -621,6 +625,9 @@ function requestOpenAITts(text, ttsToken) {
 }
 
 function speak(text, cb, displayText=null, ttsToken=null) {
+    const runId = ++speechRunId;
+    clearTimeout(speechSafetyTimer);
+    speechSafetyTimer = null;
     // 챗봇 음성이 학생 답변으로 다시 인식되지 않도록 발화 중 마이크를 잠근다.
     isBotSpeaking = true;
     isListening = false;
@@ -643,8 +650,10 @@ function speak(text, cb, displayText=null, ttsToken=null) {
     let finished = false;
     let fallbackStarted = false;
     const finishSpeaking = () => {
-        if (finished) return;
+        if (finished || runId !== speechRunId) return;
         finished = true;
+        clearTimeout(speechSafetyTimer);
+        speechSafetyTimer = null;
         // 스피커 잔향까지 마이크가 잡지 않도록 아주 짧게 기다린 뒤 다시 활성화한다.
         setTimeout(() => {
             isBotSpeaking = false;
@@ -656,7 +665,7 @@ function speak(text, cb, displayText=null, ttsToken=null) {
     };
 
     const browserFallback = () => {
-        if (fallbackStarted || finished) return;
+        if (fallbackStarted || finished || runId !== speechRunId) return;
         fallbackStarted = true;
         const u = new SpeechSynthesisUtterance(clean);
         u.lang  = 'en-US';
@@ -667,19 +676,61 @@ function speak(text, cb, displayText=null, ttsToken=null) {
         u.onend = finishSpeaking;
         u.onerror = finishSpeaking;
         window.speechSynthesis.speak(u);
+        const checkBrowserSpeech = () => {
+            if (finished || runId !== speechRunId) return;
+            if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+                finishSpeaking();
+                return;
+            }
+            speechSafetyTimer = setTimeout(checkBrowserSpeech, 500);
+        };
+        speechSafetyTimer = setTimeout(checkBrowserSpeech, 1000);
     };
 
     const playAudioBlob = (blob) => {
         const objectUrl = URL.createObjectURL(blob);
         const audio = new Audio(objectUrl);
         activeAudio = audio;
+        let lastProgressAt = Date.now();
+        let lastCurrentTime = 0;
         const cleanup = () => {
             if (activeAudio === audio) activeAudio = null;
             URL.revokeObjectURL(objectUrl);
         };
+        const watchPlayback = () => {
+            if (finished || runId !== speechRunId || activeAudio !== audio) return;
+            if (audio.currentTime > lastCurrentTime + 0.05) {
+                lastCurrentTime = audio.currentTime;
+                lastProgressAt = Date.now();
+            }
+            if (audio.ended || (audio.duration && audio.currentTime >= audio.duration - 0.1)) {
+                cleanup(); finishSpeaking(); return;
+            }
+            if (Date.now() - lastProgressAt < 7000) {
+                speechSafetyTimer = setTimeout(watchPlayback, 1000);
+                return;
+            }
+            try { audio.pause(); } catch(e) {}
+            cleanup();
+            browserFallback();
+        };
+        audio.ontimeupdate = () => {
+            if (audio.currentTime > lastCurrentTime + 0.05) {
+                lastCurrentTime = audio.currentTime;
+                lastProgressAt = Date.now();
+            }
+        };
         audio.onended = () => { cleanup(); finishSpeaking(); };
         audio.onerror = () => { cleanup(); browserFallback(); };
-        audio.play().catch(() => { cleanup(); browserFallback(); });
+        audio.onabort = () => { cleanup(); browserFallback(); };
+        audio.onstalled = () => {
+            clearTimeout(speechSafetyTimer);
+            speechSafetyTimer = setTimeout(watchPlayback, 1000);
+        };
+        audio.play().then(() => {
+            clearTimeout(speechSafetyTimer);
+            speechSafetyTimer = setTimeout(watchPlayback, 1000);
+        }).catch(() => { cleanup(); browserFallback(); });
     };
 
     if (CONFIG.tts.provider !== 'openai' || !ttsToken) {
@@ -982,6 +1033,10 @@ if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
             recognitionActive = false;
             recognitionStarting = false;
             if (e.error === 'aborted' && isBotSpeaking) return;
+            if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                resetRecognition('목소리가 안 들려요. 크롬에서 마이크를 허용해 주세요!');
+                return;
+            }
             resetRecognition('잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!');
         };
 
@@ -1124,7 +1179,9 @@ if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
     }
 
 } else {
-    alert('크롬 브라우저를 사용해주세요!');
+    mic.classList.remove('active');
+    hint.innerText = '목소리가 안 들려요. 크롬 브라우저에서 마이크를 허용해 주세요!';
+    alert('목소리가 안 들려요. 크롬 브라우저를 사용하고 마이크를 허용해 주세요!');
 }
 </script>
 </body>
