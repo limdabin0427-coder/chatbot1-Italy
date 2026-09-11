@@ -5,6 +5,8 @@
       "pizza",
       "piza",
       "pissa",
+      "peetsa",
+      "pitsa",
       "피자",
       "피짜"
     ]
@@ -13,6 +15,8 @@
     "display_name": "pasta",
     "aliases": [
       "pasta",
+      "posta",
+      "paster",
       "파스타"
     ]
   },
@@ -31,11 +35,22 @@
     "aliases": [
       "hamburger",
       "hamburgers",
-      "burger",
-      "burgers",
       "hamberger",
+      "ham burger",
+      "ham burgers",
       "햄버거",
       "함버거"
+    ]
+  },
+  "burger": {
+    "display_name": "burgers",
+    "aliases": [
+      "burger",
+      "burgers",
+      "berger",
+      "bergers",
+      "buger",
+      "bugers"
     ]
   },
   "taco": {
@@ -43,8 +58,30 @@
     "aliases": [
       "taco",
       "tacos",
+      "tako",
+      "takos",
       "타코",
       "타코스"
+    ]
+  },
+  "nachos": {
+    "display_name": "nachos",
+    "aliases": [
+      "nacho",
+      "nachos",
+      "nachoes",
+      "natcho",
+      "natchos"
+    ]
+  },
+  "burrito": {
+    "display_name": "burritos",
+    "aliases": [
+      "burrito",
+      "burritos",
+      "burito",
+      "buritos",
+      "brito"
     ]
   },
   "ice_cream": {
@@ -53,8 +90,31 @@
       "ice cream",
       "icecream",
       "ice creams",
+      "i scream",
+      "ice green",
+      "ice crim",
       "아이스크림",
       "아이스 크림"
+    ]
+  },
+  "gelato": {
+    "display_name": "gelato",
+    "aliases": [
+      "gelato",
+      "gelatto",
+      "jelato",
+      "gelado",
+      "jelatto"
+    ]
+  },
+  "coffee": {
+    "display_name": "coffee",
+    "aliases": [
+      "coffee",
+      "coffees",
+      "cofee",
+      "caffee",
+      "cafe"
     ]
   },
   "sandwich": {
@@ -63,6 +123,8 @@
       "sandwich",
       "sandwiches",
       "sandwitch",
+      "sandwitches",
+      "sand wich",
       "샌드위치",
       "샌드위취"
     ]
@@ -126,8 +188,19 @@
     "aliases": [
       "bread",
       "breads",
+      "bred",
       "브레드",
       "빵"
+    ]
+  },
+  "baguette": {
+    "display_name": "baguettes",
+    "aliases": [
+      "baguette",
+      "baguettes",
+      "baget",
+      "bagets",
+      "baguett"
     ]
   },
   "cake": {
@@ -136,6 +209,17 @@
       "cake",
       "cakes",
       "케이크"
+    ]
+  },
+  "donut": {
+    "display_name": "donuts",
+    "aliases": [
+      "donut",
+      "donuts",
+      "doughnut",
+      "doughnuts",
+      "do nut",
+      "do nuts"
     ]
   },
   "cookie": {
@@ -304,6 +388,8 @@
       "hot dogs",
       "hotdog",
       "hotdogs",
+      "hot dock",
+      "hot docks",
       "핫도그"
     ]
   },
@@ -353,6 +439,17 @@
       "탕후루"
     ]
   },
+  "bibimbap": {
+    "display_name": "bibimbap",
+    "aliases": [
+      "bibimbap",
+      "bibim bap",
+      "bibimbab",
+      "bibimbop",
+      "bibim bop",
+      "비빔밥"
+    ]
+  },
   "tteokbokki": {
     "display_name": "tteokbokki",
     "aliases": [
@@ -360,6 +457,9 @@
       "tteok bokki",
       "tteok-bokki",
       "topokki",
+      "tokpokki",
+      "tteok pokki",
+      "duck bokki",
       "떡볶이"
     ]
   },
@@ -385,6 +485,8 @@
     "aliases": [
       "macaron",
       "macarons",
+      "macaroon",
+      "macaroons",
       "마카롱"
     ]
   }
