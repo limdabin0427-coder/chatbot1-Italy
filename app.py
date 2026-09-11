@@ -35,8 +35,11 @@ from food_utils import (
     clean_text,
     extract_like_object,
     find_food,
+    is_safe_open_food_text,
     is_like_question,
     normalize_like_question,
+    recognition_candidates,
+    resolve_known_food,
 )
 
 
@@ -119,7 +122,10 @@ def select_recognition_candidate(primary, alternatives, stage):
 
     if stage == Stage.WAIT_FEELING.value:
         return next(
-            (text for text in candidates if feeling_category(text) != "unknown"),
+            (
+                text for text in candidates
+                if normalize_feeling(text) and not is_feeling_question(text)
+            ),
             candidates[0],
         )
 
@@ -150,9 +156,33 @@ def safe_login_value(value, fallback=""):
 
 
 def is_greeting(message):
+    return normalize_greeting(message) is not None
+
+
+def normalize_greeting(message):
+    """Correct common Korean-accent greeting errors without changing login names."""
     text = clean_text(message)
-    greetings = ["hello", "hi", "hey", "good morning", "안녕"]
-    return any(word in text for word in greetings)
+    if not text:
+        return None
+    if "good morning" in text or "굿모닝" in text or "굿 모닝" in text:
+        greeting = "Good morning"
+    elif re.search(r"(?:^|\s)(?:hi|high)(?:\s|$)", text) or "하이" in text:
+        greeting = "Hi"
+    elif re.search(r"(?:^|\s)hey(?:\s|$)", text) or "헤이" in text:
+        greeting = "Hey"
+    elif (
+        re.search(r"(?:^|\s)(?:hello|hallo|halo|yellow)(?:\s|$)", text)
+        or "헬로" in text
+        or "안녕" in text
+    ):
+        greeting = "Hello"
+    else:
+        normalized_name = clean_text(normalize_character_name(message))
+        weak_hello = re.search(r"(?:^|\s)(?:call|low)(?:\s|$)", text)
+        if not (weak_hello and clean_text(CHARACTER_NAME) in normalized_name):
+            return None
+        greeting = "Hello"
+    return f"{greeting}, {CHARACTER_NAME}."
 
 
 def normalize_character_name(message):
@@ -180,15 +210,58 @@ def parse_yes_no(message):
     return None
 
 
-def feeling_category(message):
+FEELING_FORMS = (
+    ("not bad", "I'm not bad.", "neutral"),
+    ("so so", "I'm so-so.", "neutral"),
+    ("not good", "I'm not good.", "negative"),
+    ("unhappy", "I'm unhappy.", "negative"),
+    ("wonderful", "I'm wonderful.", "positive"),
+    ("fantastic", "I'm fantastic.", "positive"),
+    ("excited", "I'm excited.", "positive"),
+    ("awesome", "I'm awesome.", "positive"),
+    ("perfect", "I'm perfect.", "positive"),
+    ("nervous", "I'm nervous.", "negative"),
+    ("scared", "I'm scared.", "negative"),
+    ("sleepy", "I'm sleepy.", "negative"),
+    ("hungry", "I'm hungry.", "negative"),
+    ("bored", "I'm bored.", "negative"),
+    ("angry", "I'm angry.", "negative"),
+    ("tired", "I'm tired.", "negative"),
+    ("upset", "I'm upset.", "negative"),
+    ("sick", "I'm sick.", "negative"),
+    ("sad", "I'm sad.", "negative"),
+    ("happy", "I'm happy.", "positive"),
+    ("great", "I'm great.", "positive"),
+    ("good", "I'm good.", "positive"),
+    ("fine", "I'm fine.", "positive"),
+    ("okay", "I'm okay.", "neutral"),
+    ("ok", "I'm okay.", "neutral"),
+    ("cold", "I'm cold.", "negative"),
+    ("hot", "I'm hot.", "negative"),
+    ("bad", "I'm bad.", "negative"),
+)
+
+
+def is_feeling_question(message):
+    return bool(re.search(r"\b(?:are you|how are you)\b", clean_text(message)))
+
+
+def normalize_feeling(message):
     text = clean_text(message)
-    if any(word in text for word in ["okay", "ok", "so so", "not bad"]):
-        return "neutral"
-    if any(word in text for word in ["not good", "unhappy", "tired", "sleepy", "sad", "sick", "angry", "bad"]):
-        return "negative"
-    if any(word in text for word in ["happy", "great", "good", "fine", "perfect", "awesome", "wonderful"]):
-        return "positive"
-    return "unknown"
+    if not text or is_feeling_question(text):
+        return None
+    text = re.sub(r"\bi m find\b|\bi am find\b", "i am fine", text)
+    text = re.sub(r"\bi m tire\b|\bi am tire\b", "i am tired", text)
+    text = re.sub(r"\bi m exciting\b|\bi am exciting\b", "i am excited", text)
+    for phrase, display, category in FEELING_FORMS:
+        if re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text):
+            return {"display": display, "category": category}
+    return None
+
+
+def feeling_category(message):
+    normalized = normalize_feeling(message)
+    return normalized["category"] if normalized else "unknown"
 
 def feeling_reply(message):
     category = feeling_category(message)
@@ -219,6 +292,56 @@ def call_gpt(system_prompt, user_message, fallback):
     except Exception as error:
         print(f"❌ OpenAI 호출 실패: {error}")
         return fallback
+
+
+def classify_open_food_candidates(primary, alternatives):
+    """Validate up to five open-vocabulary food candidates in one small AI call."""
+    candidates = []
+    for source_text in recognition_candidates(primary, alternatives):
+        if not is_like_question(source_text):
+            continue
+        food_name = extract_like_object(source_text)
+        if is_safe_open_food_text(food_name):
+            candidates.append((source_text, food_name))
+    if not candidates or not openai_client:
+        return None
+
+    prompt = """
+You validate one food phrase from a Korean grade-3 English speaking activity.
+Accept only when it clearly names ONE common, child-safe food, drink, fruit,
+snack, ingredient, or dish. Reject unclear ASR fragments, people, brands,
+body parts, abstract ideas, and medical, sexual, violent, or toilet words.
+Return JSON only:
+{"status":"accept" or "reject","candidate_index":0,"display_name":"natural English food name without a/an/the"}
+candidate_index must identify the clearest acceptable phrase from the supplied list.
+Do not guess or repair an unclear phrase.
+""".strip()
+    raw = call_gpt(
+        prompt,
+        json.dumps([name for _, name in candidates], ensure_ascii=False),
+        '{"status":"reject","candidate_index":0,"display_name":""}',
+    )
+    try:
+        result = json.loads(raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if result.get("status") != "accept":
+        return None
+    try:
+        selected_index = int(result.get("candidate_index", 0))
+        source_text = candidates[selected_index][0]
+    except (TypeError, ValueError, IndexError):
+        return None
+    display_name = str(result.get("display_name") or "").strip().strip(".?!\"'")
+    display_name = re.sub(r"^(?:a|an|the)\s+", "", display_name, flags=re.IGNORECASE)
+    if not is_safe_open_food_text(display_name):
+        return None
+    cleaned_name = clean_text(display_name)
+    return {
+        "key": f"open:{cleaned_name}",
+        "display_name": display_name,
+        "source_text": source_text,
+    }
 
 
 def ai_feeling_reply(message):
@@ -456,23 +579,53 @@ def transcribe_speech():
     mime_type = audio_file.mimetype or "audio/mp4"
     filename = audio_file.filename or ("speech.webm" if "webm" in mime_type else "speech.m4a")
     prompt = (
-        f"A Korean third-grade student is speaking short English sentences to {CHARACTER_NAME}. "
-        "Likely phrases include: Hello, Hi, I am happy, I am good, I am fine, I am tired, "
-        "I am sad, Yes I do, No I don't, and Do you like pizza, pasta, ice cream, chicken, "
-        "rice, bread, apples, bananas, oranges, grapes, milk, juice, fish, or salad? "
-        f"The character's name is spelled {CHARACTER_NAME}. Preserve the student's actual words."
+        f"Transcribe only clearly audible English spoken by one Korean child to {CHARACTER_NAME}. "
+        "The child may greet, say a feeling, answer yes or no, or ask Do you like plus one food. "
+        "Never continue, complete, or invent speech during silence."
     )
     try:
-        result = tts_client.audio.transcriptions.create(
-            model="gpt-4o-mini-transcribe",
+        # Translation mode forces English output even when a Korean accent makes
+        # the recognizer momentarily interpret a word as Korean.
+        result = tts_client.audio.translations.create(
+            model="whisper-1",
             file=(filename, audio_bytes, mime_type),
-            language="en",
             prompt=prompt,
+            temperature=0,
             response_format="json",
         )
         transcript = str(getattr(result, "text", "") or "").strip()
-        if not transcript:
+        if not transcript or re.search(r"[가-힣]", transcript):
             return jsonify({"error": "empty_transcript"}), 422
+        normalized = clean_text(transcript)
+        words = re.findall(r"[a-zA-Z']+", transcript)
+        prompt_markers = (
+            "the child may greet",
+            "korean child",
+            "transcribe only clearly audible english",
+            "never continue complete or invent speech",
+            "do you like plus one food",
+        )
+        feeling_examples = sum(
+            phrase in normalized
+            for phrase in ("i am happy", "i am good", "i am fine", "i am tired", "i am sad")
+        )
+        listed_foods = sum(
+            re.search(rf"\b{re.escape(food)}\b", normalized) is not None
+            for food in (
+                "pizza", "pasta", "spaghetti", "hamburger", "taco", "ice cream",
+                "sandwich", "sushi", "ramen", "rice", "bread", "cake", "cookie",
+                "apple", "banana", "orange", "grape", "chicken", "fish", "egg",
+                "cheese", "salad", "soup", "milk", "juice",
+            )
+        )
+        if (
+            len(words) > 14
+            or any(marker in normalized for marker in prompt_markers)
+            or feeling_examples >= 3
+            or listed_foods >= 5
+        ):
+            print(f"⚠️ 비정상 STT 결과 차단: {transcript[:160]}")
+            return jsonify({"error": "unreliable_transcript"}), 422
         return jsonify({"text": transcript})
     except Exception as error:
         print(f"⚠️ OpenAI STT 실패: {type(error).__name__}: {error}")
@@ -491,6 +644,7 @@ def start_chat():
     session["chat_history"] = []
     session["feeling_attempts"] = 0
     session["retry_mode"] = False
+    session["question_retry_attempts"] = {}
 
     display_reply = f"Hi, {student_name}! {CHARACTER['intro_message']}"
     return respond(
@@ -499,6 +653,80 @@ def start_chat():
         popup=f"{CHARACTER_NAME}에게 인사해 보세요.",
         next_stage=Stage.WAIT_GREETING.value,
     )
+
+
+def question_retry_response(stage, original, ambiguity_options=None):
+    """Give progressively stronger help without advancing the question stage."""
+    attempts = session.get("question_retry_attempts", {})
+    attempt = int(attempts.get(stage, 0)) + 1
+    attempts[stage] = attempt
+    session["question_retry_attempts"] = attempts
+    session.modified = True
+
+    if ambiguity_options and attempt < 3:
+        first, second = ambiguity_options[:2]
+        prompt = f"{first.capitalize()} or {second}? Please say it again."
+        return respond(
+            prompt,
+            "다시 음식 이름을 또박또박 말해 보세요!",
+            stage,
+            original=original,
+            corrected="",
+        )
+
+    if attempt == 1:
+        return respond(
+            'Try again! Please say, "Do you like ___?"',
+            "음식 이름을 또박또박 말하며 다시 말해 보세요!",
+            stage,
+            original=original,
+            corrected="",
+            speech_reply='Try again! Please say, "Do you like?"',
+        )
+
+    if attempt == 2:
+        return respond(
+            'Say it slowly. "Do you... like... ___?"',
+            "천천히 또박또박 다시 말해 보세요!",
+            stage,
+            original=original,
+            corrected="",
+            speech_reply='Say it slowly. "Do you like?"',
+        )
+
+    retry_examples = CHARACTER.get("retry_examples", {})
+    default_examples = {
+        Stage.STUDENT_QUESTION_1.value: "Do you like pizza?",
+        Stage.STUDENT_QUESTION_2.value: "Do you like pasta?",
+    }
+    if stage in default_examples:
+        example = str(retry_examples.get(stage, "")).strip()
+        if not re.fullmatch(r"Do you like .+\?", example, flags=re.IGNORECASE):
+            example = default_examples[stage]
+        return respond(
+            f'Let\'s try together. "{example}"',
+            "화면의 문장을 천천히 따라 말해 보세요!",
+            stage,
+            original=original,
+            corrected="",
+            speech_reply=f"Let's try together. {example}",
+        )
+
+    return respond(
+        "Choose an easy food. Try again!",
+        "내가 발음하기 쉬운 음식으로 시도해보세요!",
+        stage,
+        original=original,
+        corrected="",
+    )
+
+
+def clear_question_retry_attempts(stage):
+    attempts = session.get("question_retry_attempts", {})
+    if stage in attempts:
+        attempts.pop(stage, None)
+        session["question_retry_attempts"] = attempts
+        session.modified = True
 
 
 @app.route("/api/chat", methods=["POST"])
@@ -517,8 +745,19 @@ def chat():
     if not original:
         return respond("Please say that again.", "다시 한 번 말해 보세요.", stage, original=original)
 
+    # 로그인 화면의 한글 이름은 보존하되, 한글 STT 결과는 학생 말풍선에 띄우지 않는다.
+    if stage != Stage.WAIT_GREETING.value and re.search(r"[가-힣]", original):
+        return respond(
+            "Please say that again in English.",
+            "영어로 다시 한 번 말해 보세요.",
+            stage,
+            original=original,
+            corrected="",
+        )
+
     if stage == Stage.WAIT_GREETING.value:
-        if not is_greeting(original):
+        corrected_greeting = normalize_greeting(original)
+        if not corrected_greeting:
             return respond(
                 'Please say, "Hello!"',
                 f'{CHARACTER_NAME}에게 "Hello!"라고 인사해 보세요.',
@@ -530,26 +769,37 @@ def chat():
             "오늘의 기분을 영어로 말해 보세요.",
             Stage.WAIT_FEELING.value,
             original=original,
-            corrected=normalize_character_name(original),
+            corrected=corrected_greeting,
             followup_reply="How are you today?",
         )
 
     if stage == Stage.WAIT_FEELING.value:
-        category = feeling_category(original)
+        normalized_feeling = normalize_feeling(original)
         attempts = session.get("feeling_attempts", 0)
-        if category == "unknown" and attempts == 0:
+        if is_feeling_question(original) and attempts == 0:
+            session["feeling_attempts"] = 1
+            return respond(
+                'Please say, "I\'m happy."',
+                "오늘의 기분을 영어로 다시 말해 보세요.",
+                Stage.WAIT_FEELING.value,
+                original=original,
+                corrected="",
+            )
+        if not normalized_feeling and attempts == 0:
             session["feeling_attempts"] = 1
             return respond(
                 "How are you today?",
                 "오늘의 기분을 영어로 다시 말해 보세요.",
                 Stage.WAIT_FEELING.value,
                 original=original,
+                corrected="",
             )
         return respond(
             feeling_reply(original),
             "활동지를 보고 질문해 보세요.",
             Stage.STUDENT_QUESTION_1.value,
             original=original,
+            corrected=normalized_feeling["display"] if normalized_feeling else "",
             followup_reply="Look! It's a food market!",
         )
 
@@ -575,19 +825,30 @@ def chat():
     }
 
     if stage in question_stages:
-        food = find_food(original)
-        if not is_like_question(original):
-            return respond(
-                "Great try! Can you say that again?",
-                '“Do you like ~?”로 다시 질문해 보세요.',
+        food_resolution = resolve_known_food(data.get("message"), alternatives)
+        if food_resolution["status"] == "ambiguous":
+            return question_retry_response(
                 stage,
-                original=original,
+                original,
+                ambiguity_options=food_resolution.get("options"),
             )
+        food = food_resolution.get("food")
+        if food:
+            original = food_resolution["source_text"]
+        if not is_like_question(original):
+            return question_retry_response(stage, original)
 
-        corrected = normalize_like_question(original)
+        if not food:
+            food = classify_open_food_candidates(data.get("message"), alternatives)
+            if food:
+                original = food["source_text"]
+        if not food:
+            return question_retry_response(stage, original)
+
+        corrected = f"Do you like {food['display_name']}?"
+        clear_question_retry_attempts(stage)
         asked_foods = session.get("asked_foods", [])
-        object_name = extract_like_object(original)
-        asked_key = food["key"] if food else f"free:{clean_text(object_name)}"
+        asked_key = food["key"]
         retry_mode = session.get("retry_mode", False)
         if asked_key in asked_foods and not retry_mode:
             return respond(
@@ -603,7 +864,7 @@ def chat():
         session["retry_mode"] = False
         next_stage, popup, followup_reply, question_number = question_stages[stage]
         answer = get_food_answer(COUNTRY, question_number)
-        food_name = food["display_name"] if food else (object_name or "that")
+        food_name = food["display_name"]
         reply = make_food_response(answer, food_name)
         return respond(
             reply,
@@ -636,6 +897,9 @@ def chat():
 @app.route("/api/retry-question", methods=["POST"])
 def retry_question():
     session["retry_mode"] = True
+    attempts = session.get("question_retry_attempts", {})
+    attempts.pop(Stage.STUDENT_QUESTION_3.value, None)
+    session["question_retry_attempts"] = attempts
     session.modified = True
     return jsonify({
         "reply": "Ask me one more question.",
