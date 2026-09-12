@@ -111,7 +111,7 @@ def select_recognition_candidate(primary, alternatives, stage):
     candidates = []
     for value in [primary, *(alternatives or [])]:
         candidate = str(value or "").strip()
-        if candidate and candidate not in candidates:
+        if candidate and not is_unreliable_transcript(candidate) and candidate not in candidates:
             candidates.append(candidate)
 
     if not candidates:
@@ -159,12 +159,41 @@ def is_greeting(message):
     return normalize_greeting(message) is not None
 
 
+def tidy_spoken_display(message):
+    """Tidy spacing and punctuation without adding or deleting spoken content."""
+    text = re.sub(r"\s+", " ", str(message or "").strip())
+    text = text.replace("’", "'")
+    text = re.sub(r"\s+([,.!?])", r"\1", text)
+    if text:
+        first_letter = re.search(r"[A-Za-z]", text)
+        if first_letter:
+            index = first_letter.start()
+            text = text[:index] + text[index].upper() + text[index + 1:]
+        if text[-1] not in ".!?":
+            text += "."
+    return text
+
+
+def contains_character_name(message):
+    aliases = [CHARACTER_NAME, *CHARACTER.get("name_aliases", [])]
+    return any(
+        re.search(rf"(?<!\w){re.escape(str(alias).strip())}(?!\w)", str(message or ""), re.IGNORECASE)
+        for alias in aliases
+        if str(alias).strip()
+    )
+
+
 def normalize_greeting(message):
-    """Correct common Korean-accent greeting errors without changing login names."""
+    """Recognize flexible greetings while preserving what the student said."""
+    raw = str(message or "").strip()
     text = clean_text(message)
     if not text:
         return None
-    if "good morning" in text or "굿모닝" in text or "굿 모닝" in text:
+    if "good afternoon" in text or "굿애프터눈" in text or "굿 애프터눈" in text:
+        greeting = "Good afternoon"
+    elif "good evening" in text or "굿이브닝" in text or "굿 이브닝" in text:
+        greeting = "Good evening"
+    elif "good morning" in text or "굿모닝" in text or "굿 모닝" in text:
         greeting = "Good morning"
     elif re.search(r"(?:^|\s)(?:hi|high)(?:\s|$)", text) or "하이" in text:
         greeting = "Hi"
@@ -182,7 +211,27 @@ def normalize_greeting(message):
         if not (weak_hello and clean_text(CHARACTER_NAME) in normalized_name):
             return None
         greeting = "Hello"
-    return f"{greeting}, {CHARACTER_NAME}."
+
+    # Korean greeting text needs an English display. English input keeps all
+    # spoken words; only known character-name aliases are corrected.
+    if re.search(r"[가-힣]", raw):
+        return f"{greeting}, {CHARACTER_NAME}." if contains_character_name(raw) else f"{greeting}."
+
+    display = normalize_character_name(raw)
+    leading_greeting = re.compile(
+        r"^\s*(?:good\s+morning|good\s+afternoon|good\s+evening|hi|high|hey|hello|hallo|halo|yellow|call|low)\b",
+        re.IGNORECASE,
+    )
+    display = leading_greeting.sub(greeting, display, count=1)
+    if contains_character_name(raw):
+        display = re.sub(
+            rf"^({re.escape(greeting)})\s*,?\s*({re.escape(CHARACTER_NAME)})\b",
+            r"\1, \2",
+            display,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    return tidy_spoken_display(display)
 
 
 def normalize_character_name(message):
@@ -201,13 +250,52 @@ def normalize_character_name(message):
 
 def parse_yes_no(message):
     text = clean_text(message)
-    negatives = ["no", "no i dont", "no i don t", "i dont", "i don t", "do not", "아니"]
-    positives = ["yes", "yes i do", "i do", "응", "네"]
-    if any(value in text for value in negatives):
+    if re.match(r"^(?:no\b(?:\s+i\s+(?:dont|don t|do not)\b)?|i\s+(?:dont|don t|do not)\b|아니\b)", text):
         return "no"
-    if any(value in text for value in positives):
+    if re.match(r"^(?:yes\b(?:\s+i\s+do\b)?|i\s+do\b|응\b|네\b)", text):
         return "yes"
     return None
+
+
+def format_yes_no_display(message, answer):
+    """Keep a clear Yes/No answer and retain only a clearly meaningful extension."""
+    raw = re.sub(r"\s+", " ", str(message or "").strip()).replace("’", "'")
+    if answer == "yes":
+        match = re.match(r"^\s*(yes(?:\s*,?\s*i\s+do)?)(?:[.!?]+|\s+)?(.*)$", raw, re.IGNORECASE)
+        fallback = "Yes, I do." if re.search(r"\bi\s+do\b", raw, re.IGNORECASE) else "Yes."
+    else:
+        match = re.match(r"^\s*(no(?:\s*,?\s*i\s+(?:don(?:'|\s)?t|do\s+not))?)(?:[.!?]+|\s+)?(.*)$", raw, re.IGNORECASE)
+        fallback = "No, I don't." if re.search(r"\bi\s+(?:don(?:'|\s)?t|do\s+not)\b", raw, re.IGNORECASE) else "No."
+    if not match:
+        return fallback
+
+    remainder = match.group(2).strip()
+    meaningful_extension = re.match(
+        r"^(?:but\s+)?(?:i\s+(?:really\s+)?(?:like|love|don(?:'|\s)?t\s+like|do\s+not\s+like)\b|my\s+favou?rite\b|it\s+is\b|it's\b)",
+        remainder,
+        re.IGNORECASE,
+    )
+    if not remainder or not meaningful_extension or is_unreliable_transcript(remainder):
+        return fallback
+    return f"{fallback} {tidy_spoken_display(remainder)}"
+
+
+def is_unreliable_transcript(message):
+    """Reject only unmistakable silence markers, URLs, and known STT boilerplate."""
+    raw = re.sub(r"\s+", " ", str(message or "").strip()).lower()
+    bare = re.sub(r"^[\[({\s]+|[\])}.!?\s]+$", "", raw).strip()
+    if not bare or bare in {"silence", "silent", "no speech", "no audio", "inaudible"}:
+        return True
+    if re.search(r"(?:https?://|www\.)\S+", raw):
+        return True
+    if re.search(r"\b[a-z0-9-]+\.(?:com|org|net|edu|co\.kr)\b", raw):
+        return True
+    compact = re.sub(r"[^a-z0-9]+", " ", raw).strip()
+    known_boilerplate = {
+        "learn english for free www engvid com",
+        "learn english for free engvid com",
+    }
+    return compact in known_boilerplate
 
 
 FEELING_FORMS = (
@@ -466,6 +554,15 @@ def respond(
     })
 
 
+def no_speech_response(next_stage):
+    """Retry locally without creating a student/character bubble or log row."""
+    return jsonify({
+        "suppress_user_message": True,
+        "retry_message": "잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!",
+        "stage": next_stage,
+    })
+
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -594,7 +691,9 @@ def transcribe_speech():
             response_format="json",
         )
         transcript = str(getattr(result, "text", "") or "").strip()
-        if not transcript or re.search(r"[가-힣]", transcript):
+        if not transcript or re.search(r"[가-힣]", transcript) or is_unreliable_transcript(transcript):
+            if transcript:
+                print(f"⚠️ 무음·URL STT 결과 차단: {transcript[:160]}")
             return jsonify({"error": "empty_transcript"}), 422
         normalized = clean_text(transcript)
         words = re.findall(r"[a-zA-Z']+", transcript)
@@ -743,7 +842,7 @@ def chat():
     )
 
     if not original:
-        return respond("Please say that again.", "다시 한 번 말해 보세요.", stage, original=original)
+        return no_speech_response(stage)
 
     # 로그인 화면의 한글 이름은 보존하되, 한글 STT 결과는 학생 말풍선에 띄우지 않는다.
     if stage != Stage.WAIT_GREETING.value and re.search(r"[가-힣]", original):
@@ -882,7 +981,7 @@ def chat():
             return respond("Great try! Can you say that again?", '“Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.', stage, original=original)
         food_name = CHARACTER.get("preference_food", "ice cream")
         reply = f"Great! I like {food_name}, too." if answer == "yes" else "Okay! That's fine."
-        corrected_answer = "Yes, I do." if answer == "yes" else "No, I don't."
+        corrected_answer = format_yes_no_display(original, answer)
         return respond(reply, "자유롭게 음식을 골라 질문해 보세요.", Stage.STUDENT_QUESTION_3.value, original=original, corrected=corrected_answer, reaction="yes", followup_reply="Good! Now, choose one more food and ask me.")
 
     if stage == Stage.COUNTRY_PREFERENCE.value:
@@ -890,7 +989,7 @@ def chat():
         if answer is None:
             return respond("Great try! Can you say that again?", '“Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.', stage, original=original)
         reply = ENDING_MESSAGE if answer == "yes" else "That's okay! I hope to see you again! Bye-bye!"
-        corrected_answer = "Yes, I do." if answer == "yes" else "No, I don't."
+        corrected_answer = format_yes_no_display(original, answer)
         return respond(reply, None, Stage.END.value, fireworks=True, original=original, corrected=corrected_answer, reaction="yes")
 
     return respond(ENDING_MESSAGE, None, Stage.END.value, fireworks=True, original=original)
