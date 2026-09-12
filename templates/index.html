@@ -426,23 +426,24 @@ function applyConfig() {
     const introSources = CONFIG.introBackgrounds?.length
         ? CONFIG.introBackgrounds
         : [CONFIG.introBackground || CONFIG.backgrounds[0]].filter(Boolean);
-    const introSource = introSources[0];
-    if (introSource) {
+    // 시작 배경을 모두 미리 불러오고 겹쳐서 부드럽게 전환한다.
+    const introSlides = introSources.map((src, index) => {
         const d = document.createElement('div');
-        d.className = 'bg-slide';
+        d.className = 'bg-slide intro-bg';
         d.dataset.backgroundRole = 'intro';
-        d.style.backgroundImage = `url('${introSource}')`;
-        d.style.opacity = '1';
+        d.style.backgroundImage = `url('${src}')`;
+        d.style.opacity = index === 0 ? '1' : '0';
         bg.appendChild(d);
-    }
-    if (introSources.length > 1) {
+        return d;
+    });
+    if (introSlides.length > 1) {
         let introIndex = 0;
-        const introSlide = bg.querySelector('[data-background-role="intro"]');
         const rotateIntro = () => {
-            if (usingConversationBackgrounds || !introSlide?.isConnected) return;
+            if (usingConversationBackgrounds || !introSlides[0]?.isConnected) return;
             backgroundTimer = setTimeout(() => {
+                introSlides[introIndex].style.opacity = '0';
                 introIndex = (introIndex + 1) % introSources.length;
-                introSlide.style.backgroundImage = `url('${introSources[introIndex]}')`;
+                introSlides[introIndex].style.opacity = '1';
                 rotateIntro();
             }, backgroundDuration);
         };
@@ -490,7 +491,7 @@ async function startConversationBackgrounds() {
     if (!available.length) return;
     usingConversationBackgrounds = true;
 
-    const introSlide = bg.querySelector('[data-background-role="intro"]');
+    const introSlides = Array.from(bg.querySelectorAll('[data-background-role="intro"]'));
     const slides = available.map((src) => {
         const d = document.createElement('div');
         d.className = 'bg-slide conversation-bg';
@@ -502,10 +503,10 @@ async function startConversationBackgrounds() {
 
     void bg.offsetWidth;
     slides[0].style.opacity = '1';
-    if (introSlide) introSlide.style.opacity = '0';
+    introSlides.forEach(slide => { slide.style.opacity = '0'; });
 
     setTimeout(() => {
-        if (introSlide) introSlide.remove();
+        introSlides.forEach(slide => slide.remove());
         startBackgroundRotation();
     }, 1600);
 }
@@ -569,9 +570,36 @@ function pickVoice(gender) {
     return voices.find(v => v.lang.startsWith('en')) || null;
 }
 
+// Safari/iOS에서 비동기 응답 뒤 새 Audio 재생이 막히지 않도록
+// 하나의 플레이어를 사용자 터치로 미리 열고 대화 끝까지 재사용한다.
+const ttsPlayer = new Audio();
+ttsPlayer.preload = 'auto';
+ttsPlayer.setAttribute('playsinline', '');
 let activeAudio = null;
+let activeAudioUrl = null;
+let ttsAudioUnlocked = false;
 const ttsAudioCache = new Map();
 const ttsPendingCache = new Map();
+
+function unlockTtsAudio() {
+    if (ttsAudioUnlocked) return;
+    // API를 사용하지 않는 아주 짧은 로컬 무음 WAV이다.
+    const silentWav = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAACA';
+    try {
+        ttsPlayer.src = silentWav;
+        ttsPlayer.load();
+        const playPromise = ttsPlayer.play();
+        if (playPromise && typeof playPromise.then === 'function') {
+            playPromise.then(() => {
+                ttsPlayer.pause();
+                ttsPlayer.currentTime = 0;
+                ttsAudioUnlocked = true;
+            }).catch(() => {});
+        } else {
+            ttsAudioUnlocked = true;
+        }
+    } catch(e) {}
+}
 const ttsClientId = sessionStorage.getItem('ttsClientId') ||
     ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 sessionStorage.setItem('ttsClientId', ttsClientId);
@@ -644,6 +672,10 @@ function speak(text, cb, displayText=null, ttsToken=null) {
         activeAudio.pause();
         activeAudio = null;
     }
+    if (activeAudioUrl) {
+        URL.revokeObjectURL(activeAudioUrl);
+        activeAudioUrl = null;
+    }
     bubble.innerText = displayText || text;
     bubble.style.display = 'block';
     const clean = text.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu,'').replace(/\s{2,}/g,' ').trim();
@@ -664,38 +696,34 @@ function speak(text, cb, displayText=null, ttsToken=null) {
         }, 150);
     };
 
-    const browserFallback = () => {
+    const skipUnavailableAudio = () => {
         if (fallbackStarted || finished || runId !== speechRunId) return;
         fallbackStarted = true;
-        const u = new SpeechSynthesisUtterance(clean);
-        u.lang  = 'en-US';
-        u.rate  = CONFIG.tts.childMode ? CONFIG.tts.rate * 0.95 : CONFIG.tts.rate;
-        u.pitch = CONFIG.tts.childMode ? 1.35 : 1.0;
-        const sv = pickVoice(CONFIG.tts.gender);
-        if (sv) u.voice = sv;
-        u.onend = finishSpeaking;
-        u.onerror = finishSpeaking;
-        window.speechSynthesis.speak(u);
-        const checkBrowserSpeech = () => {
-            if (finished || runId !== speechRunId) return;
-            if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-                finishSpeaking();
-                return;
-            }
-            speechSafetyTimer = setTimeout(checkBrowserSpeech, 500);
-        };
-        speechSafetyTimer = setTimeout(checkBrowserSpeech, 1000);
+        // 다른 브라우저 내장 목소리를 재생하지 않고 다음 차례를 안전하게 연다.
+        finishSpeaking();
     };
 
     const playAudioBlob = (blob) => {
         const objectUrl = URL.createObjectURL(blob);
-        const audio = new Audio(objectUrl);
+        const audio = ttsPlayer;
+        if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
+        activeAudioUrl = objectUrl;
+        audio.src = objectUrl;
+        audio.load();
         activeAudio = audio;
         let lastProgressAt = Date.now();
         let lastCurrentTime = 0;
         const cleanup = () => {
             if (activeAudio === audio) activeAudio = null;
-            URL.revokeObjectURL(objectUrl);
+            if (activeAudioUrl === objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+                activeAudioUrl = null;
+            }
+            audio.onended = null;
+            audio.onerror = null;
+            audio.onabort = null;
+            audio.onstalled = null;
+            audio.ontimeupdate = null;
         };
         const watchPlayback = () => {
             if (finished || runId !== speechRunId || activeAudio !== audio) return;
@@ -712,7 +740,7 @@ function speak(text, cb, displayText=null, ttsToken=null) {
             }
             try { audio.pause(); } catch(e) {}
             cleanup();
-            browserFallback();
+            skipUnavailableAudio();
         };
         audio.ontimeupdate = () => {
             if (audio.currentTime > lastCurrentTime + 0.05) {
@@ -721,8 +749,8 @@ function speak(text, cb, displayText=null, ttsToken=null) {
             }
         };
         audio.onended = () => { cleanup(); finishSpeaking(); };
-        audio.onerror = () => { cleanup(); browserFallback(); };
-        audio.onabort = () => { cleanup(); browserFallback(); };
+        audio.onerror = () => { cleanup(); skipUnavailableAudio(); };
+        audio.onabort = () => { cleanup(); skipUnavailableAudio(); };
         audio.onstalled = () => {
             clearTimeout(speechSafetyTimer);
             speechSafetyTimer = setTimeout(watchPlayback, 1000);
@@ -730,11 +758,11 @@ function speak(text, cb, displayText=null, ttsToken=null) {
         audio.play().then(() => {
             clearTimeout(speechSafetyTimer);
             speechSafetyTimer = setTimeout(watchPlayback, 1000);
-        }).catch(() => { cleanup(); browserFallback(); });
+        }).catch(() => { cleanup(); skipUnavailableAudio(); });
     };
 
     if (CONFIG.tts.provider !== 'openai' || !ttsToken) {
-        browserFallback();
+        skipUnavailableAudio();
         return;
     }
 
@@ -745,7 +773,7 @@ function speak(text, cb, displayText=null, ttsToken=null) {
 
     requestOpenAITts(text, ttsToken)
         .then(playAudioBlob)
-        .catch(() => browserFallback())
+        .catch(() => skipUnavailableAudio())
         ;
 }
 
@@ -758,6 +786,7 @@ function setGif(reaction) {
 
 /* ── 로그인 ── */
 document.getElementById('login-btn').onclick = () => {
+    unlockTtsAudio();
     if (!configReady) {
         alert('챗봇 설정을 불러오는 중입니다. 잠시 후 다시 눌러주세요.');
         return;
@@ -1128,6 +1157,7 @@ if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
 
     const handleMicPress = event => {
         if (event) event.preventDefault();
+        unlockTtsAudio();
         // 챗봇이 말하는 동안에는 마이크가 절대 시작되지 않는다.
         if (isBotSpeaking || window.speechSynthesis.speaking) return;
         if (!mic.classList.contains('active')) return;
