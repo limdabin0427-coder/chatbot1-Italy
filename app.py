@@ -819,7 +819,7 @@ def chat():
         Stage.STUDENT_QUESTION_3.value: (
             Stage.COUNTRY_PREFERENCE.value,
             '“Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.',
-            f"Great! It was nice to see you here. Now, do you like {COUNTRY}?",
+            f"Great! It was nice to see you here. Now, do you like {CHARACTER.get('country_question_name', COUNTRY)}?",
             2,
         ),
     }
@@ -882,14 +882,16 @@ def chat():
             return respond("Great try! Can you say that again?", '“Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.', stage, original=original)
         food_name = CHARACTER.get("preference_food", "ice cream")
         reply = f"Great! I like {food_name}, too." if answer == "yes" else "Okay! That's fine."
-        return respond(reply, "자유롭게 음식을 골라 질문해 보세요.", Stage.STUDENT_QUESTION_3.value, original=original, reaction=answer, followup_reply="Good! Now, choose one more food and ask me.")
+        corrected_answer = "Yes, I do." if answer == "yes" else "No, I don't."
+        return respond(reply, "자유롭게 음식을 골라 질문해 보세요.", Stage.STUDENT_QUESTION_3.value, original=original, corrected=corrected_answer, reaction=answer, followup_reply="Good! Now, choose one more food and ask me.")
 
     if stage == Stage.COUNTRY_PREFERENCE.value:
         answer = parse_yes_no(original)
         if answer is None:
             return respond("Great try! Can you say that again?", '“Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.', stage, original=original)
         reply = ENDING_MESSAGE if answer == "yes" else "That's okay! I hope to see you again! Bye-bye!"
-        return respond(reply, None, Stage.END.value, fireworks=True, original=original, reaction=answer)
+        corrected_answer = "Yes, I do." if answer == "yes" else "No, I don't."
+        return respond(reply, None, Stage.END.value, fireworks=True, original=original, corrected=corrected_answer, reaction=answer)
 
     return respond(ENDING_MESSAGE, None, Stage.END.value, fireworks=True, original=original)
 
