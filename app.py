@@ -765,7 +765,7 @@ def chat():
                 original=original,
             )
         return respond(
-            f"Welcome to my country! This is {COUNTRY}.",
+            f"Welcome to my country! This is {CHARACTER.get('country_question_name', COUNTRY)}.",
             "오늘의 기분을 영어로 말해 보세요.",
             Stage.WAIT_FEELING.value,
             original=original,
@@ -883,7 +883,7 @@ def chat():
         food_name = CHARACTER.get("preference_food", "ice cream")
         reply = f"Great! I like {food_name}, too." if answer == "yes" else "Okay! That's fine."
         corrected_answer = "Yes, I do." if answer == "yes" else "No, I don't."
-        return respond(reply, "자유롭게 음식을 골라 질문해 보세요.", Stage.STUDENT_QUESTION_3.value, original=original, corrected=corrected_answer, reaction=answer, followup_reply="Good! Now, choose one more food and ask me.")
+        return respond(reply, "자유롭게 음식을 골라 질문해 보세요.", Stage.STUDENT_QUESTION_3.value, original=original, corrected=corrected_answer, reaction="yes", followup_reply="Good! Now, choose one more food and ask me.")
 
     if stage == Stage.COUNTRY_PREFERENCE.value:
         answer = parse_yes_no(original)
@@ -891,7 +891,7 @@ def chat():
             return respond("Great try! Can you say that again?", '“Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.', stage, original=original)
         reply = ENDING_MESSAGE if answer == "yes" else "That's okay! I hope to see you again! Bye-bye!"
         corrected_answer = "Yes, I do." if answer == "yes" else "No, I don't."
-        return respond(reply, None, Stage.END.value, fireworks=True, original=original, corrected=corrected_answer, reaction=answer)
+        return respond(reply, None, Stage.END.value, fireworks=True, original=original, corrected=corrected_answer, reaction="yes")
 
     return respond(ENDING_MESSAGE, None, Stage.END.value, fireworks=True, original=original)
 
