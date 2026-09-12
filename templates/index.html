@@ -933,6 +933,15 @@ async function talk(input, alternatives=[]) {
             })
         });
         const data = await res.json();
+        if (data.suppress_user_message) {
+            isListening = false; recognitionActive = false; recognitionStarting = false;
+            manualStopRequested = false; recognitionCandidates = []; isSubmittingSpeech = false;
+            mic.classList.remove('recording');
+            if (!isBotSpeaking && String(stage).toLowerCase() !== 'end' && mic.style.display !== 'none') mic.classList.add('active');
+            hint.innerText = data.retry_message || '잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!';
+            return;
+        }
+        if (!res.ok) throw new Error(`Chat HTTP ${res.status}`);
         const shownInput = data.recognized_text || input;
         addMsg('user', shownInput);
         conversationHistory.push({ role:'user', content:shownInput });
@@ -982,6 +991,15 @@ const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
+    const isClearlyUnreliableTranscript = value => {
+        const raw = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const bare = raw.replace(/^[\[({\s]+|[\])}.!?\s]+$/g, '').trim();
+        if (!bare || ['silence', 'silent', 'no speech', 'no audio', 'inaudible'].includes(bare)) return true;
+        if (/(?:https?:\/\/|www\.)\S+/.test(raw) || /\b[a-z0-9-]+\.(?:com|org|net|edu|co\.kr)\b/.test(raw)) return true;
+        const compact = raw.replace(/[^a-z0-9]+/g, ' ').trim();
+        return ['learn english for free www engvid com', 'learn english for free engvid com'].includes(compact);
+    };
+
     const resetRecognition = (message='🎙️ 버튼을 한 번 누르고 말해 보세요!') => {
         isListening = false;
         recognitionActive = false;
@@ -990,6 +1008,7 @@ if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
         recognitionCandidates = [];
         isSubmittingSpeech = false;
         mic.classList.remove('recording');
+        if (!isBotSpeaking && String(stage).toLowerCase() !== 'end' && mic.style.display !== 'none') mic.classList.add('active');
         hint.innerText = message;
     };
 
@@ -997,7 +1016,7 @@ if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
         if (!isListening || isSubmittingSpeech) return;
         isSubmittingSpeech = true;
         const candidates = [...new Set(
-            recognitionCandidates.map(text => text.trim()).filter(Boolean)
+            recognitionCandidates.map(text => text.trim()).filter(text => text && !isClearlyUnreliableTranscript(text))
         )];
         if (candidates.length === 0) {
             resetRecognition('잘 듣지 못했어요. 버튼을 누르고 다시 말해 보세요!');
@@ -1098,7 +1117,7 @@ if (SR || (isAppleMobile && navigator.mediaDevices && window.MediaRecorder)) {
             const response = await fetch('/api/transcribe', {method:'POST', body:form});
             if (!response.ok) throw new Error(`STT HTTP ${response.status}`);
             const data = await response.json();
-            if (!data.text) throw new Error('Empty transcript');
+            if (!data.text || isClearlyUnreliableTranscript(data.text)) throw new Error('Empty transcript');
             await talk(data.text, []);
         } catch (error) {
             console.error('Apple 음성 변환 실패:', error);
