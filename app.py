@@ -980,7 +980,7 @@ def chat():
         if answer is None:
             return respond("Great try! Can you say that again?", '“Yes, I do.” 또는 “No, I don’t.”로 대답해 보세요.', stage, original=original)
         food_name = CHARACTER.get("preference_food", "ice cream")
-        reply = f"Great! I like {food_name}, too." if answer == "yes" else "Okay! That's fine."
+        reply = f"Great! You like {food_name}!" if answer == "yes" else "Okay! That's fine."
         corrected_answer = format_yes_no_display(original, answer)
         return respond(reply, "자유롭게 음식을 골라 질문해 보세요.", Stage.STUDENT_QUESTION_3.value, original=original, corrected=corrected_answer, reaction="yes", followup_reply="Good! Now, choose one more food and ask me.")
 
