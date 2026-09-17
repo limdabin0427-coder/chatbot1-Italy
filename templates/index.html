@@ -279,6 +279,31 @@
             box-shadow: 0 0 28px rgba(56,239,125,0.75);
             animation: pulse 1.4s infinite;
         }
+        #question-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 2.5vw, 14px);
+            width: 100%;
+        }
+        .confirmation-choice {
+            display: none;
+            min-width: clamp(105px, 27vw, 145px);
+            padding: 11px 12px;
+            border: none;
+            border-radius: 14px;
+            color: #fff;
+            font-size: clamp(13px, 3.2vw, 16px);
+            font-weight: 800;
+            line-height: 1.25;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #question-controls.confirmation-mode .confirmation-choice { display: block; }
+        #confirm-yes { background: linear-gradient(135deg,#00a86b,#67c96b); }
+        #confirm-no { background: linear-gradient(135deg,#667085,#98a2b3); }
+        .confirmation-choice:disabled { opacity: 0.55; cursor: default; }
         @keyframes pulse {
             0%{transform:scale(1)} 50%{transform:scale(1.09)} 100%{transform:scale(1)}
         }
@@ -378,7 +403,11 @@
         <div id="controls">
             <div id="popup"></div>
             <div id="hint">잠시만 기다려주세요...</div>
-            <button id="mic">🎙️</button>
+            <div id="question-controls">
+                <button id="confirm-yes" class="confirmation-choice">Yes. 맞아요</button>
+                <button id="mic">🎙️</button>
+                <button id="confirm-no" class="confirmation-choice">No. 다시 말할래요</button>
+            </div>
         </div>
     </div>
 </div>
@@ -390,6 +419,9 @@ const popup     = document.getElementById('popup');
 const chat      = document.getElementById('chat');
 const hint      = document.getElementById('hint');
 const mic       = document.getElementById('mic');
+const questionControls = document.getElementById('question-controls');
+const confirmYes = document.getElementById('confirm-yes');
+const confirmNo = document.getElementById('confirm-no');
 let recognition = null;
 let isBotSpeaking = false;
 let isListening = false;
@@ -406,6 +438,8 @@ let recordingTimer = null;
 // 현재 발화와 복구 타이머를 한 쌍으로 관리한다.
 let speechRunId = 0;
 let speechSafetyTimer = null;
+let pendingSuggestedQuestion = null;
+let confirmationBusy = false;
 const finale    = document.getElementById('finale');
 const retryBtn  = document.getElementById('retry-btn');
 const homeBtn   = document.getElementById('home-btn');
@@ -802,6 +836,7 @@ document.getElementById('login-btn').onclick = () => {
 
 /* ── 앱 시작 ── */
 async function startApp() {
+    hideQuestionConfirmation(false);
     mic.classList.remove('active');
     window.speechSynthesis.cancel();
     stage = 'WAIT_GREETING';
@@ -840,6 +875,51 @@ function showPopup(text) {
 }
 function hidePopup() { clearTimeout(popupTimer); popup.classList.remove('show'); }
 function scheduleHide(d=500) { clearTimeout(popupTimer); popupTimer = setTimeout(hidePopup, d); }
+
+/* ── 5회 실패 후 문장 확인 ── */
+function showQuestionConfirmation(question) {
+    pendingSuggestedQuestion = question;
+    confirmationBusy = false;
+    confirmYes.disabled = false;
+    confirmNo.disabled = false;
+    questionControls.classList.add('confirmation-mode');
+    mic.disabled = true;
+    mic.classList.remove('active', 'recording');
+}
+
+function hideQuestionConfirmation(reactivateMic=true) {
+    pendingSuggestedQuestion = null;
+    confirmationBusy = false;
+    confirmYes.disabled = false;
+    confirmNo.disabled = false;
+    questionControls.classList.remove('confirmation-mode');
+    mic.disabled = false;
+    if (
+        reactivateMic
+        && !isBotSpeaking
+        && String(stage).toLowerCase() !== 'end'
+        && mic.style.display !== 'none'
+    ) {
+        mic.classList.add('active');
+    }
+}
+
+confirmYes.onclick = async () => {
+    if (!pendingSuggestedQuestion || confirmationBusy) return;
+    confirmationBusy = true;
+    confirmYes.disabled = true;
+    confirmNo.disabled = true;
+    const suggestedQuestion = pendingSuggestedQuestion;
+    hideQuestionConfirmation(false);
+    await talk(suggestedQuestion, [], {supportConfirmation:true});
+};
+
+confirmNo.onclick = () => {
+    if (confirmationBusy) return;
+    hideQuestionConfirmation(true);
+    hidePopup();
+    hint.innerText = '🎙️ 버튼을 누르고 다시 말해보세요!';
+};
 
 /* ── 메시지 추가 ── */
 function addMsg(sender, text) {
@@ -920,7 +1000,7 @@ retryBtn.onclick = async () => {
 };
 
 /* ── API 호출 ── */
-async function talk(input, alternatives=[]) {
+async function talk(input, alternatives=[], options={}) {
     scheduleHide(400);
     try {
         const res  = await fetch('/api/chat', {
@@ -930,6 +1010,7 @@ async function talk(input, alternatives=[]) {
                 alternatives,
                 history: conversationHistory,
                 stage,
+                support_confirmation: Boolean(options.supportConfirmation),
             })
         });
         const data = await res.json();
@@ -964,7 +1045,12 @@ async function talk(input, alternatives=[]) {
                 hint.innerText = '수고했어요! 🎉';
                 mic.style.display = 'none';
                 showFinale();
+            } else if (data.confirmation_required && data.suggested_question) {
+                hint.innerText = data.popup || '제시된 문장이 맞는지 선택해 주세요.';
+                showQuestionConfirmation(data.suggested_question);
+                pp ? showPopup(pp) : hidePopup();
             } else {
+                hideQuestionConfirmation(false);
                 hint.innerText = '🎙️ 버튼을 누르고 대답해보세요!';
                 pp ? setTimeout(()=>showPopup(pp),200) : hidePopup();
             }
