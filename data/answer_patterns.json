@@ -6,20 +6,20 @@
   ],
 
   "America": [
-    "yes",
     "no",
+    "yes",
     "yes"
   ],
 
   "Mexico": [
-    "yes",
     "no",
+    "yes",
     "yes"
   ],
 
   "France": [
     "yes",
     "no",
-    "yes"
+    "no"
   ]
 }
